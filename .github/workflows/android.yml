@@ -38,7 +38,8 @@ jobs:
       - run: npx cap sync android
       - name: Gerar APK
         working-directory: android
-        run: chmod +x gradlew && ./gradlew assembleRelease --no-daemon
+        run: chmod +x gradlew && ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee ../gradle.log; exit ${PIPESTATUS[0]}
+        shell: bash
       - name: Renomear
         run: cp android/app/build/outputs/apk/release/app-release.apk NossoEncontro-Comandas.apk
       - name: Publicar versão
@@ -48,3 +49,11 @@ jobs:
           name: App Nosso Encontro 1.${{ github.run_number }}
           body: APK do app de comandas. Baixe e instale no celular Android.
           files: NossoEncontro-Comandas.apk
+      - name: Publicar log do erro
+        if: failure()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-log-${{ github.run_number }}
+          name: Log do build ${{ github.run_number }}
+          prerelease: true
+          files: gradle.log
