@@ -1,0 +1,49 @@
+name: App Android
+
+on:
+  push:
+    branches: [main]
+    paths: ['android/**', 'capacitor.config.json', 'package.json', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      VERSION_CODE: ${{ github.run_number }}
+      VERSION_NAME: 1.${{ github.run_number }}
+      KEYSTORE_FILE: ${{ github.workspace }}/android/keystore/nosso-encontro.jks
+      # chave do repositório privado; para a Play Store, mover para secrets
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'enWTtYzkj7QlLwu54ObY' }}
+      KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'enWTtYzkj7QlLwu54ObY' }}
+      KEY_ALIAS: nossoencontro
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+      - name: Gerar APK
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew assembleRelease --no-daemon
+      - name: Renomear
+        run: cp android/app/build/outputs/apk/release/app-release.apk NossoEncontro-Comandas.apk
+      - name: Publicar versão
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: app-v1.${{ github.run_number }}
+          name: App Nosso Encontro 1.${{ github.run_number }}
+          body: APK do app de comandas. Baixe e instale no celular Android.
+          files: NossoEncontro-Comandas.apk

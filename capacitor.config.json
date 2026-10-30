@@ -1,0 +1,13 @@
+{
+  "appId": "app.nossoencontro.comandas",
+  "appName": "Nosso Encontro",
+  "webDir": "dist",
+  "server": {
+    "url": "https://espetaria-nosso-encontro.vercel.app",
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "android": {
+    "backgroundColor": "#15110E"
+  }
+}

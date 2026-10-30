@@ -1,5 +1,6 @@
-// Impressão em impressora térmica Bluetooth via app RawBT (Android).
-// O app recebe os comandos ESC/POS em base64 e manda para a impressora pareada.
+// Impressão em impressora térmica Bluetooth.
+// Dentro do app Android: direto pelo Bluetooth. No navegador: via app RawBT.
+import { ehApp, imprimirBluetooth } from './impressora'
 
 const LARGURA = 32 // caracteres por linha numa bobina de 58mm
 
@@ -71,10 +72,11 @@ const paraBase64 = (str) => {
   return btoa(bin)
 }
 
-export function imprimir(conteudo) {
+export async function imprimir(conteudo) {
+  if (ehApp()) return imprimirBluetooth(conteudo)
   const b64 = paraBase64(conteudo)
   const url = 'intent:base64,' + b64 + '#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;'
   window.location.href = url
 }
 
-export const ehAndroid = () => /Android/i.test(navigator.userAgent)
+export const ehAndroid = () => ehApp() || /Android/i.test(navigator.userAgent)

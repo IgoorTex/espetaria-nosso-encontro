@@ -3,6 +3,8 @@ import { supabase, money, hojeExtenso, decorrido, msgErro } from '../lib'
 import { Icon, Sheet, PinSheet, Badge, useToast } from '../ui'
 import { gerenteLiberado, liberarGerente, bloquearGerente } from '../gerente'
 import { reimprimirPendentes } from './imprimirPedido'
+import { ehApp, impressoraSalva, salvarImpressora, procurarImpressoras } from '../impressora'
+import { imprimir } from '../print'
 
 export default function Comandas({ nav, versao, atualizar }) {
   const toast = useToast()
@@ -13,6 +15,7 @@ export default function Comandas({ nav, versao, atualizar }) {
   const [menu, setMenu] = useState(false)
   const [pinPara, setPinPara] = useState(null)
   const [trocarPin, setTrocarPin] = useState(false)
+  const [configImp, setConfigImp] = useState(false)
 
   useEffect(() => {
     let ativo = true
@@ -77,7 +80,8 @@ export default function Comandas({ nav, versao, atualizar }) {
             <Icon name="alerta" />
             <span style={{ flex: 1 }}>{pendentes.length === 1 ? '1 pedido não foi impresso' : `${pendentes.length} pedidos não foram impressos`}</span>
             <button className="btn btn-amber" style={{ height: 40 }} onClick={async () => {
-              try { await reimprimirPendentes(pendentes.map((p) => p.id)); atualizar() } catch (e) { toast(msgErro(e), 'erro') }
+              try { await reimprimirPendentes(pendentes.map((p) => p.id)); atualizar() }
+              catch (e) { if (e?.message === 'SEM_IMPRESSORA') setConfigImp(true); else toast('Falha ao imprimir: ' + msgErro(e), 'erro') }
             }}>Imprimir</button>
           </div>
         )}
@@ -123,6 +127,11 @@ export default function Comandas({ nav, versao, atualizar }) {
 
       {menu && (
         <Sheet titulo="Menu" onClose={() => setMenu(false)}>
+          {ehApp() && (
+            <button className="btn btn-block" style={{ justifyContent: 'flex-start' }} onClick={() => { setMenu(false); setConfigImp(true) }}>
+              <Icon name="imprimir" /> Impressora{impressoraSalva() ? ' · ' + impressoraSalva().name : ' · não escolhida'}
+            </button>
+          )}
           <button className="btn btn-block" style={{ justifyContent: 'flex-start' }} onClick={() => areaGerente('relatorios')}><Icon name="grafico" /> Relatórios</button>
           <button className="btn btn-block" style={{ justifyContent: 'flex-start' }} onClick={() => areaGerente('cardapio')}><Icon name="lista" /> Cardápio e preços</button>
           <button className="btn btn-block" style={{ justifyContent: 'flex-start' }} onClick={() => { setMenu(false); setTrocarPin(true) }}><Icon name="cadeado" /> Trocar PIN do gerente</button>
@@ -135,6 +144,8 @@ export default function Comandas({ nav, versao, atualizar }) {
 
       {pinPara && <PinSheet descricao="Área do gerente." onClose={() => setPinPara(null)}
         onOk={() => { liberarGerente(); const t = pinPara; setPinPara(null); nav.ir(t) }} />}
+
+      {configImp && <ConfigImpressora onClose={() => setConfigImp(false)} />}
 
       {trocarPin && <TrocarPin onClose={() => setTrocarPin(false)} onFeito={() => { setTrocarPin(false); toast('PIN alterado') }} />}
     </div>
@@ -176,6 +187,54 @@ function NovaComanda({ lista, onClose, onCriada }) {
         </div>
         <button className="btn btn-primary btn-lg" disabled={salvando}>{salvando ? 'Abrindo…' : 'Abrir comanda'}</button>
       </form>
+    </Sheet>
+  )
+}
+
+function ConfigImpressora({ onClose }) {
+  const toast = useToast()
+  const [atual, setAtual] = useState(impressoraSalva())
+  const [lista, setLista] = useState(null)
+  const [buscando, setBuscando] = useState(false)
+  const [testando, setTestando] = useState(false)
+
+  const buscar = async () => {
+    setBuscando(true); setLista(null)
+    try { setLista(await procurarImpressoras()) }
+    catch (e) { toast(msgErro(e), 'erro') }
+    setBuscando(false)
+  }
+  const testar = async () => {
+    setTestando(true)
+    try {
+      await imprimir('\x1B@\x1Ba\x01\x1BE\x01NOSSO ENCONTRO\n\x1BE\x00Impressora funcionando!\n\n\n\n\x1DV\x01')
+      toast('Página de teste enviada')
+    } catch (e) { toast('Não imprimiu: ' + msgErro(e) + '. A impressora está ligada e perto?', 'erro') }
+    setTestando(false)
+  }
+
+  return (
+    <Sheet titulo="Impressora" onClose={onClose}>
+      <div className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span className="muted small">Impressora da cozinha</span>
+        <strong style={{ fontSize: 17 }}>{atual ? atual.name : 'Nenhuma escolhida'}</strong>
+        {atual && <span className="muted" style={{ fontSize: 12 }}>{atual.address}</span>}
+      </div>
+      {atual && <button className="btn btn-amber btn-lg" disabled={testando} onClick={testar}><Icon name="imprimir" /> {testando ? 'Imprimindo…' : 'Imprimir página de teste'}</button>}
+      <button className="btn btn-lg" disabled={buscando} onClick={buscar}>{buscando ? 'Procurando… (uns 10 segundos)' : (atual ? 'Trocar impressora' : 'Procurar impressoras')}</button>
+      {lista && lista.length === 0 && <p className="muted" style={{ margin: 0 }}>Nenhuma encontrada. Confira se a impressora está ligada e perto do celular, e tente de novo.</p>}
+      {lista && lista.length > 0 && (
+        <div className="card" style={{ padding: '2px 0' }}>
+          {lista.map((d) => (
+            <button key={d.address} className="item-pedido" style={{ width: '100%', background: 'none', border: 'none', borderBottom: '1px solid var(--surface-2)', textAlign: 'left', minHeight: 52 }}
+              onClick={() => { salvarImpressora(d); setAtual(impressoraSalva()); setLista(null); toast('Impressora escolhida') }}>
+              <span style={{ flex: 1 }}>{d.name || 'Sem nome'}<br /><span className="muted" style={{ fontSize: 12 }}>{d.address}</span></span>
+              <span style={{ color: 'var(--amber)', fontWeight: 600 }}>Usar</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <p className="muted small" style={{ margin: 0 }}>Dica: impressoras costumam aparecer como “MPT-II”, “BlueTooth Printer”, “PT-210” ou parecido.</p>
     </Sheet>
   )
 }

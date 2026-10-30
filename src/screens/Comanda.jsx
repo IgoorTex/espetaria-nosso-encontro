@@ -82,7 +82,9 @@ export default function Comanda({ id, nav, versao, atualizar }) {
       const imprimiu = await imprimirPedido(pedidoId)
       toast(imprimiu ? (ehAndroid() ? 'Pedido enviado para a cozinha' : 'Pedido salvo. Impressão só funciona no Android.') : 'Pedido lançado (só bebidas, sem notinha)')
     } catch (e) {
-      toast('Pedido salvo, mas a impressão falhou. Use “Reimprimir”.', 'erro')
+      toast(e?.message === 'SEM_IMPRESSORA'
+        ? 'Pedido salvo. Escolha a impressora no Menu e toque em “Imprimir” no aviso.'
+        : 'Pedido salvo, mas a impressão falhou. Confira a impressora e use “Imprimir” no aviso.', 'erro')
     }
     setEnviando(false)
   }
@@ -99,7 +101,7 @@ export default function Comanda({ id, nav, versao, atualizar }) {
 
   const reimprimir = async (pid) => {
     try { const ok = await imprimirPedido(pid, { reimpressao: true }); if (!ok) toast('Esse pedido não tem itens da cozinha') }
-    catch (e) { toast(msgErro(e), 'erro') }
+    catch (e) { toast(e?.message === 'SEM_IMPRESSORA' ? 'Escolha a impressora no Menu primeiro' : 'Falha ao imprimir: ' + msgErro(e), 'erro') }
   }
 
   if (!comanda) return <div className="app"><div className="topbar"><button className="icon-btn" aria-label="Voltar" onClick={nav.voltar}><Icon name="voltar" /></button></div></div>
